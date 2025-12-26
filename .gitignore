@@ -1,11 +1,8 @@
-# Dependency directories
 node_modules/
 jspm_packages/
 
-# Environment variables (สำคัญมาก ห้ามหลุด)
 .env
 
-# Logs
 logs
 *.log
 npm-debug.log*
@@ -14,18 +11,15 @@ yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
-# Runtime data
 pids
 *.pid
 *.seed
 *.pid.lock
 
-# Editor directories and files
 .idea
 .vscode
 *.swp
 *.swo
 .DS_Store
 
-# Optional: PM2 process file
 ecosystem.config.js

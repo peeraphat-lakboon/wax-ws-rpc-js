@@ -1,0 +1,56 @@
+import { AbiProvider, AuthorityProvider, AuthorityProviderArgs, BinaryAbi, TransactResult } from 'eosjs/dist/eosjs-api-interfaces';
+import { GetAbiResult, GetAccountResult, GetAccountsByAuthorizersResult, GetActivatedProtocolFeaturesParams, GetActivatedProtocolFeaturesResult, GetBlockInfoResult, GetBlockResult, GetCodeResult, GetCodeHashResult, GetCurrencyStatsResult, GetInfoResult, GetProducerScheduleResult, GetProducersResult, GetRawCodeAndAbiResult, GetRawAbiResult, GetScheduledTransactionsResult, GetTableRowsResult, PushTransactionArgs, ReadOnlyTransactResult, GetBlockHeaderStateResult, GetTableByScopeResult } from 'eosjs/dist/eosjs-rpc-interfaces';
+import { Authorization } from 'eosjs/dist/eosjs-serialize';
+export interface WaxRpcOptions {
+    autoConnect?: boolean;
+    autoReconnect?: boolean;
+    reconnectInterval?: number;
+    maxRetries?: number;
+}
+export declare class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
+    endpoint: string;
+    private ws;
+    private isConnected;
+    private isConnecting;
+    private pending;
+    private queue;
+    private options;
+    private retryCount;
+    private reqId;
+    private heartbeatTimer;
+    private readonly HEARTBEAT_INTERVAL;
+    constructor(endpoint: string, options?: WaxRpcOptions);
+    connect(): Promise<void>;
+    private attemptReconnect;
+    private startHeartbeat;
+    private stopHeartbeat;
+    private processQueue;
+    private sendToWs;
+    private handleMessage;
+    private call;
+    get_abi(accountName: string): Promise<GetAbiResult>;
+    get_account(accountName: string): Promise<GetAccountResult>;
+    get_accounts_by_authorizers(accounts: Authorization[], keys: string[]): Promise<GetAccountsByAuthorizersResult>;
+    get_activated_protocol_features({ limit, search_by_block_num, reverse, lower_bound, upper_bound, }: GetActivatedProtocolFeaturesParams): Promise<GetActivatedProtocolFeaturesResult>;
+    get_block_header_state(blockNumOrId: number | string): Promise<GetBlockHeaderStateResult>;
+    get_block_info(blockNum: number): Promise<GetBlockInfoResult>;
+    get_block(blockNumOrId: number | string): Promise<GetBlockResult>;
+    get_code(accountName: string): Promise<GetCodeResult>;
+    get_code_hash(accountName: string): Promise<GetCodeHashResult>;
+    get_currency_balance(code: string, account: string, symbol?: string | null): Promise<string[]>;
+    get_currency_stats(code: string, symbol: string): Promise<GetCurrencyStatsResult>;
+    get_info(): Promise<GetInfoResult>;
+    get_producer_schedule(): Promise<GetProducerScheduleResult>;
+    get_producers(json?: boolean, lowerBound?: string, limit?: number): Promise<GetProducersResult>;
+    get_raw_code_and_abi(accountName: string): Promise<GetRawCodeAndAbiResult>;
+    getRawAbi(accountName: string): Promise<BinaryAbi>;
+    get_raw_abi(accountName: string): Promise<GetRawAbiResult>;
+    get_scheduled_transactions(json?: boolean, lowerBound?: string, limit?: number): Promise<GetScheduledTransactionsResult>;
+    get_table_rows({ json, code, scope, table, lower_bound, upper_bound, index_position, key_type, limit, reverse, show_payer, }: any): Promise<GetTableRowsResult>;
+    get_table_by_scope({ code, table, lower_bound, upper_bound, limit, }: any): Promise<GetTableByScopeResult>;
+    getRequiredKeys(args: AuthorityProviderArgs): Promise<string[]>;
+    push_transaction({ signatures, compression, serializedTransaction, serializedContextFreeData }: PushTransactionArgs): Promise<TransactResult>;
+    push_ro_transaction({ signatures, compression, serializedTransaction }: PushTransactionArgs, returnFailureTraces?: boolean): Promise<ReadOnlyTransactResult>;
+    push_transactions(transactions: PushTransactionArgs[]): Promise<TransactResult[]>;
+    send_transaction({ signatures, compression, serializedTransaction, serializedContextFreeData }: PushTransactionArgs): Promise<TransactResult>;
+}

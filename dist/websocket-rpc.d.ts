@@ -16,7 +16,6 @@ export declare class WebsocketJsonRpc implements AuthorityProvider, AbiProvider 
     private queue;
     private options;
     private retryCount;
-    private reqId;
     private heartbeatTimer;
     private readonly HEARTBEAT_INTERVAL;
     constructor(endpoint: string, options?: WaxRpcOptions);

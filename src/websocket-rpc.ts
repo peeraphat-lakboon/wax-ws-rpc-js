@@ -34,6 +34,28 @@ const arrayToHex = (data: Uint8Array): string => {
     return result;
 };
 
+const uuid = (): string => {
+    let uuid = '';
+    for (let i = 0; i < 32; i += 1) {
+        if (i === 8 || i === 12 || i === 16 || i === 20) {
+            uuid += '-';
+        }
+        let n;
+        if (i === 12) {
+            n = 4;
+        } else {
+            const random = Math.random() * 16 | 0;
+            if (i === 16) {
+                n = (random & 3) | 0;
+            } else {
+                n = random;
+            }
+        }
+        uuid += n.toString(16);
+    }
+    return uuid;
+}
+
 let WebSocketClass: any;
 
 if (typeof window !== 'undefined' && window.WebSocket) {
@@ -53,7 +75,7 @@ interface RpcRequest {
 }
 
 interface RpcResponse {
-    request_id: number;
+    request_id: string;
     type: number;
     error?: string;
     [key: string]: any;
@@ -73,12 +95,11 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
     private isConnected: boolean = false;
     private isConnecting: boolean = false;
 
-    private pending: Map<number, { resolve: Function, reject: Function, timeout: any }> = new Map();
+    private pending: Map<string, { resolve: Function, reject: Function, timeout: any }> = new Map();
     private queue: Array<{ payload: RpcRequest, resolve: Function, reject: Function }> = [];
-    
+
     private options: Required<WaxRpcOptions>;
     private retryCount: number = 0;
-    private reqId: number = 0;
 
     private heartbeatTimer: any;
     private readonly HEARTBEAT_INTERVAL = 30000;
@@ -101,7 +122,7 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
         if (this.isConnected || this.isConnecting) return;
 
         this.isConnecting = true;
-        
+
         return new Promise((resolve, reject) => {
             try {
                 this.ws = new WebSocketClass(this.endpoint);
@@ -168,7 +189,7 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
     }
 
     private sendToWs(payload: RpcRequest, resolve: Function, reject: Function) {
-        const requestId = Number(payload.request_id);
+        const requestId = payload.request_id;
         const timeout = setTimeout(() => {
             if (this.pending.has(requestId)) {
                 this.pending.delete(requestId);
@@ -184,7 +205,7 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
         try {
             const rawData = event.data.toString();
             const response: RpcResponse = JSON.parse(rawData);
-            const requestId = Number(response.request_id);
+            const requestId = response.request_id;
 
             const request = this.pending.get(requestId);
             if (request) {
@@ -199,8 +220,8 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
     }
 
     private async call<T>(method: string, params: any = {}): Promise<T> {
-        const request_id = ++this.reqId;
-        const payload: RpcRequest = { request_id: `${request_id}`, type: method };
+        const request_id = uuid();
+        const payload: RpcRequest = { request_id, type: method };
 
         if (params && Object.keys(params).length > 0) {
             payload.params = params;
@@ -313,18 +334,18 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
         show_payer = false,
     }: any): Promise<GetTableRowsResult> {
         return await this.call('get_table_rows', {
-                json,
-                code,
-                scope,
-                table,
-                lower_bound,
-                upper_bound,
-                index_position,
-                key_type,
-                limit,
-                reverse,
-                show_payer,
-            });
+            json,
+            code,
+            scope,
+            table,
+            lower_bound,
+            upper_bound,
+            index_position,
+            key_type,
+            limit,
+            reverse,
+            show_payer,
+        });
     }
 
     public async get_table_by_scope({
@@ -335,12 +356,12 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
         limit = 10,
     }: any): Promise<GetTableByScopeResult> {
         return await this.call('get_table_by_scope', {
-                code,
-                table,
-                lower_bound,
-                upper_bound,
-                limit,
-            });
+            code,
+            table,
+            lower_bound,
+            upper_bound,
+            limit,
+        });
     }
 
     public async getRequiredKeys(args: AuthorityProviderArgs): Promise<string[]> {
@@ -377,7 +398,7 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
     }
 
     public async push_transactions(transactions: PushTransactionArgs[]): Promise<TransactResult[]> {
-        const packedTrxs: PackedTrx[] = transactions.map(({signatures, compression = 0, serializedTransaction, serializedContextFreeData }: PushTransactionArgs) => {
+        const packedTrxs: PackedTrx[] = transactions.map(({ signatures, compression = 0, serializedTransaction, serializedContextFreeData }: PushTransactionArgs) => {
             return {
                 signatures,
                 compression,
@@ -385,7 +406,7 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
                 packed_trx: arrayToHex(serializedTransaction),
             };
         });
-        return await this.call('push_transactions', packedTrxs );
+        return await this.call('push_transactions', packedTrxs);
     }
 
     public async send_transaction(

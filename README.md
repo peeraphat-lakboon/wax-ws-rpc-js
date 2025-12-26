@@ -27,9 +27,19 @@ Importing using commonJS syntax is supported by Node.js
 ```
 
 ## Basic Usage
-
+default config
 ```js
   const rpc = new WebsocketJsonRpc('ws://localhost:3000');
+```
+
+custom config
+```js
+  const rpc = new WebsocketJsonRpc('ws://localhost:3000', {
+    autoConnect: true,
+    autoReconnect: true,
+    reconnectInterval: 3000,
+    maxRetries: 10
+  });
 ```
 
 ### Chain API Request

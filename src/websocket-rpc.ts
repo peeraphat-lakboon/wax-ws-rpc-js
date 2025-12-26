@@ -221,6 +221,9 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
 
     private async call<T>(method: string, params: any = {}): Promise<T> {
         const request_id = uuid();
+
+        method = method.replace("/v1/chain/", "");
+
         const payload: RpcRequest = { request_id, type: method };
 
         if (params && Object.keys(params).length > 0) {

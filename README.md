@@ -51,14 +51,44 @@ Importing using commonJS syntax is supported by Node.js
 
 ```js
   import { Api } from 'eosjs';
+  import { JsSignatureProvider } from 'eosjs/dist/eosjs-jssig';
   import { WebsocketJsonRpc } from 'wax-ws-rpc-js';
+
+  const defaultPrivateKey = "5Hpu95MCJsYWzMMkhWR7bxjxJtEZ3JqLNeBCTiNT2XdPkSSCCkD";
+  const signatureProvider = new JsSignatureProvider([defaultPrivateKey]);
 
   const rpc = new WebsocketJsonRpc('ws://localhost:3000');
   const api = new Api({ 
-      rpc, 
-      textDecoder: new TextDecoder(), 
-      textEncoder: new TextEncoder() 
+    rpc, 
+    signatureProvider, 
+    textDecoder: new TextDecoder(), 
+    textEncoder: new TextEncoder() 
   });
+
+  const result = await api.transact({
+    actions: [
+      {
+        account: 'eosio.token',
+        name: 'transfer',
+        authorization: [
+          {
+            actor: 'account1',
+            permission: 'active',
+          }
+        ],
+        data: {
+          from: 'account1',
+          to: 'account2',
+          quantity: '1.00000000 WAX',
+          memo: "(>'.')> <('.'<)"
+        },
+      }
+    ]
+  }, {
+      blocksBehind: 3,
+      expireSeconds: 30,
+  });
+  console.dir(result, { depth: null });
 ```
 
 ---

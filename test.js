@@ -23,7 +23,7 @@ async function test() {
         const currency_balance = await rpc.get_currency_balance("eosio.token", "eosio.saving");
         console.log(currency_balance);
 
-        
+
 
         const api = new Api({ rpc, signatureProvider, textDecoder: new TextDecoder(), textEncoder: new TextEncoder() });
 

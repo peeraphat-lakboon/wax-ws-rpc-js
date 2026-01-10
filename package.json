@@ -1,0 +1,37 @@
+{
+  "name": "wax-ws-rpc-js",
+  "version": "1.0.8",
+  "description": "JavaScript client SDK for WAX WebSocket RPC.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "webpack",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peeraphat-lakboon/wax-ws-rpc-js.git"
+  },
+  "keywords": [],
+  "author": "meta",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/peeraphat-lakboon/wax-ws-rpc-js/issues"
+  },
+  "homepage": "https://github.com/peeraphat-lakboon/wax-ws-rpc-js#readme",
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "eosjs": "^22.1.0",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^6.0.1",
+    "@wharfkit/antelope": "^1.1.1"
+  }
+}

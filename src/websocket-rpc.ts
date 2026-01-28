@@ -69,16 +69,38 @@ if (typeof window !== 'undefined' && window.WebSocket) {
     }
 }
 
+export interface TableDelta<T = any> {
+    type: 'table_delta';
+    code: string;
+    scope: string;
+    table: string;
+    primary_key: string | number;
+    payer: string;
+    action: 'INSERT' | 'UPDATE' | 'ERASE';
+    data: T | null;
+    old_data: T | null;
+}
+
+export interface ActionTrace<T = any> {
+    type: 'action_trace';
+    tx_id: string;
+    block_num: number;
+    block_time: string;
+    cpu_usage_us: number;
+    net_usage: number;
+    receiver: string;
+    trace: {
+        account: string;
+        name: string;
+        authorization: { actor: string; permission: string }[];
+        data: T;
+    };
+}
+
 interface RpcRequest {
     request_id: string;
     type: string;
-    [key: string]: any;
-}
-
-interface RpcResponse {
-    request_id: string;
-    type: number;
-    [key: string]: any;
+    params?: any;
 }
 
 export interface WaxRpcOptions {
@@ -104,6 +126,11 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
 
     private heartbeatTimer: any;
     private readonly HEARTBEAT_INTERVAL = 30000;
+
+    private id: string = uuid();
+
+    private tableSubs: Map<string, Array<(data: TableDelta) => void>> = new Map();
+    private traceSubs: Map<string, Array<(data: ActionTrace) => void>> = new Map();
 
     constructor(endpoint: string, options: WaxRpcOptions = {}) {
         this.endpoint = endpoint.replace(/\/$/, '');
@@ -134,7 +161,10 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
                     this.isConnected = true;
                     this.isConnecting = false;
                     this.retryCount = 0;
+
+                    this.resubscribeAll();
                     this.processQueue();
+
                     this.startHeartbeat();
                     resolve();
                 };
@@ -206,20 +236,186 @@ export class WebsocketJsonRpc implements AuthorityProvider, AbiProvider {
     private handleMessage(event: any) {
         try {
             const rawData = event.data.toString();
-            const response: RpcResponse = JSON.parse(rawData);
-            const requestId = response.request_id;
 
-            const request = this.pending.get(requestId);
-            if (request) {
-                clearTimeout(request.timeout);
-                this.pending.delete(requestId);
+            if (!rawData.startsWith('{') && !rawData.startsWith('[')) return;
 
-                if (response.result.code) request.reject(response.result);
-                else request.resolve(response.result);
+            const msg: any = JSON.parse(rawData);
+
+            if (msg.type === 'pong') return;
+
+            if (msg.type === 'table_delta') {
+                this.dispatchSubscription(msg);
+                return;
+            }
+
+            if (msg.type === 'action_trace') {
+                this.dispatchSubscription(msg);
+                return;
+            }
+
+            if (msg.request_id && this.pending.has(msg.request_id)) {
+                const request = this.pending.get(msg.request_id);
+                if (request) {
+                    clearTimeout(request.timeout);
+                    this.pending.delete(msg.request_id);
+                    if (msg.type === 'error') request.reject(new Error(msg.message));
+                    else request.resolve(msg.result);
+                }
             }
         } catch (e) {
             console.error("Parse Error:", e);
         }
+    }
+
+    private dispatchSubscription(msg: any) {
+        if (msg.type === 'table_delta') {
+            const delta = msg as TableDelta;
+            const specificKey = `table:${delta.code}:${delta.table}:${delta.scope}`;
+            const wildcardKey = `table:${delta.code}:${delta.table}:*`;
+
+            const callbacks = [
+                ...(this.tableSubs.get(specificKey) || []),
+                ...(this.tableSubs.get(wildcardKey) || [])
+            ];
+
+            callbacks.forEach(cb => cb(delta));
+        } 
+        else if (msg.type === 'action_trace') {
+            const trace = msg as ActionTrace;
+            const key = `trace:${trace.trace.account}:${trace.trace.name}`;
+            
+            const callbacks = this.traceSubs.get(key);
+            if (callbacks) {
+                callbacks.forEach(cb => cb(trace));
+            }
+        }
+    }
+
+    public subscribeTable<T = any>(
+        code: string, 
+        scope: string, 
+        table: string, 
+        callback: (data: TableDelta<T>) => void
+    ): () => void {
+        const scopeKey = scope || "*";
+        const key = `table:${code}:${table}:${scopeKey}`;
+
+        if (!this.tableSubs.has(key)) {
+            this.tableSubs.set(key, []);
+            
+            const payload = {
+                request_id: this.id,
+                type: 'subscribe_table',
+                params: { code, table, scope }
+            };
+            
+            if (this.isConnected) {
+                this.ws.send(JSON.stringify(payload));
+            } 
+            if (!this.isConnected && !this.isConnecting) {
+                this.connect();
+            }
+        }
+        
+        this.tableSubs.get(key)?.push(callback);
+
+        return () => {
+            const callbacks = this.tableSubs.get(key);
+            if (callbacks) {
+                const index = callbacks.indexOf(callback);
+                if (index !== -1) {
+                    callbacks.splice(index, 1);
+                }
+
+                if (callbacks.length === 0) {
+                    this.tableSubs.delete(key);
+                    if (this.isConnected) {
+                        const payload = {
+                            request_id: this.id,
+                            type: 'unsubscribe_table',
+                            params: { code, table, scope }
+                        };
+                        this.ws.send(JSON.stringify(payload));
+                    }
+                }
+            }
+        };
+    }
+
+    public subscribeTrace<T = any>(
+        codeAction: string,
+        callback: (data: ActionTrace<T>) => void
+    ): () => void {
+        const [code, action] = codeAction.split('::');
+        if (!code || !action) throw new Error("Invalid format. Use 'contract::action'");
+
+        const key = `trace:${code}:${action}`;
+
+        if (!this.traceSubs.has(key)) {
+            this.traceSubs.set(key, []);
+            
+            const payload = {
+                request_id: this.id,
+                type: 'subscribe_trace',
+                params: { code, action }
+            };
+
+            if (this.isConnected) {
+                this.ws.send(JSON.stringify(payload));
+            }
+            if (!this.isConnected && !this.isConnecting) {
+                this.connect();
+            }
+        }
+        this.traceSubs.get(key)?.push(callback);
+
+        return () => {
+            const callbacks = this.traceSubs.get(key);
+            if (callbacks) {
+                const index = callbacks.indexOf(callback);
+                if (index !== -1) {
+                    callbacks.splice(index, 1);
+                }
+
+                if (callbacks.length === 0) {
+                    this.traceSubs.delete(key);
+                    if (this.isConnected) {
+                        const payload = {
+                            request_id: this.id,
+                            type: 'unsubscribe_trace',
+                            params: { code, action }
+                        };
+                        this.ws.send(JSON.stringify(payload));
+                    }
+                }
+            }
+        };
+    }
+
+    private resubscribeAll() {
+        this.tableSubs.forEach((callbacks, key) => {
+            const [_, code, table, scope] = key.split(':');
+            
+            const payload = {
+                request_id: this.id, 
+                type: 'subscribe_table',
+                params: { code, table, scope: scope === "*" ? null : scope }
+            };
+            
+            this.ws.send(JSON.stringify(payload));
+        });
+
+        this.traceSubs.forEach((callbacks, key) => {
+            const [_, code, action] = key.split(':');
+
+            const payload = {
+                request_id: this.id, 
+                type: 'subscribe_trace',
+                params: { code, action }
+            };
+
+            this.ws.send(JSON.stringify(payload));
+        });
     }
 
     private async call<T>(method: string, params: any = {}): Promise<T> {
